@@ -1,0 +1,112 @@
+[
+    {
+        "product_id": "P001",
+        "title": "星云Pro降噪蓝牙耳机",
+        "description": "支持主动降噪和通透模式，佩戴轻便，续航时间长，适合地铁通勤和办公室使用。",
+        "category": "电子产品",
+        "brand": "星云",
+        "price": 699.00,
+        "stock": 120,
+        "on_sale": true,
+        "created_at": "2026-01-10"
+    },
+    {
+        "product_id": "P002",
+        "title": "远航运动蓝牙耳机",
+        "description": "防水防汗，佩戴牢固，适合跑步、健身和户外运动，不支持主动降噪。",
+        "category": "电子产品",
+        "brand": "远航",
+        "price": 299.00,
+        "stock": 200,
+        "on_sale": false,
+        "created_at": "2026-02-05"
+    },
+    {
+        "product_id": "P003",
+        "title": "极光轻薄笔记本电脑",
+        "description": "重量轻，电池续航时间长，适合学生上课、编程学习和日常办公。",
+        "category": "电子产品",
+        "brand": "极光",
+        "price": 4999.00,
+        "stock": 35,
+        "on_sale": true,
+        "created_at": "2026-03-12"
+    },
+    {
+        "product_id": "P004",
+        "title": "雷霆游戏笔记本电脑",
+        "description": "配备高性能显卡和高刷新率屏幕，适合大型游戏、视频剪辑和三维建模。",
+        "category": "电子产品",
+        "brand": "雷霆",
+        "price": 8999.00,
+        "stock": 18,
+        "on_sale": false,
+        "created_at": "2026-04-01"
+    },
+    {
+        "product_id": "P005",
+        "title": "墨香电子阅读器",
+        "description": "使用电子墨水屏，阅读时接近纸质书效果，支持阅读小说和学习资料。",
+        "category": "电子产品",
+        "brand": "墨香",
+        "price": 1299.00,
+        "stock": 56,
+        "on_sale": true,
+        "created_at": "2026-03-20"
+    },
+    {
+        "product_id": "P006",
+        "title": "人体工学办公椅",
+        "description": "腰部支撑可以调节，坐垫柔软透气，适合每天长时间学习和办公。",
+        "category": "办公家具",
+        "brand": "安坐",
+        "price": 1599.00,
+        "stock": 42,
+        "on_sale": true,
+        "created_at": "2026-02-18"
+    },
+    {
+        "product_id": "P007",
+        "title": "简约实木书桌",
+        "description": "桌面宽大稳定，可以放置显示器、笔记本电脑和书籍，适合家庭书房。",
+        "category": "办公家具",
+        "brand": "木语",
+        "price": 1899.00,
+        "stock": 0,
+        "on_sale": false,
+        "created_at": "2026-01-25"
+    },
+    {
+        "product_id": "P008",
+        "title": "疾风专业跑步鞋",
+        "description": "采用轻量缓震鞋底，具有良好回弹性能，适合日常慢跑和长距离跑步。",
+        "category": "运动用品",
+        "brand": "疾风",
+        "price": 599.00,
+        "stock": 88,
+        "on_sale": true,
+        "created_at": "2026-04-15"
+    },
+    {
+        "product_id": "P009",
+        "title": "力量可调节哑铃套装",
+        "description": "重量可以自由调节，占地面积小，适合在家进行力量训练和健身。",
+        "category": "运动用品",
+        "brand": "力量",
+        "price": 899.00,
+        "stock": 31,
+        "on_sale": false,
+        "created_at": "2026-03-08"
+    },
+    {
+        "product_id": "P010",
+        "title": "暖阳恒温电热水壶",
+        "description": "支持快速烧水和多档温度调节，可以长时间保温，适合泡茶和冲咖啡。",
+        "category": "家用电器",
+        "brand": "暖阳",
+        "price": 259.00,
+        "stock": 150,
+        "on_sale": true,
+        "created_at": "2026-04-22"
+    }
+]
