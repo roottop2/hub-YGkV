@@ -1,0 +1,23 @@
+# 深度研究助手 —— 后端依赖
+# 安装：pip3 install -r requirements.txt
+
+# Web 框架（提供 /api/research 接口）
+fastapi
+
+# ASGI 服务器（start.sh 用 uvicorn 启动）
+uvicorn[standard]
+
+# 提示词模板（backend/templates/*.jinja2）
+jinja2
+
+# 读取项目根目录的 .env
+python-dotenv
+
+# 调 Bocha 搜索 API 用的异步 HTTP 客户端
+httpx
+
+# OpenAI Agents SDK（用 DeepSeek 作为模型后端）
+openai-agents
+
+# 数据模型（所有 pydantic 模型集中在 backend/models.py）
+pydantic

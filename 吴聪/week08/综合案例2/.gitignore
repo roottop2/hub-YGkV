@@ -1,0 +1,16 @@
+# 密钥与本地配置（绝不提交）
+.env
+
+# 运行时产物：研究记录落盘目录
+backend/data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
