@@ -27,9 +27,39 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
+
+
+def _to_text(value: Any) -> Any:
+    """把模型输出的"不像字符串的东西"尽量变成字符串。
+
+    提示词里明明要求给字符串，模型却经常给：
+        None   → 该字段没想好，留了个空值
+        123    → 把"结论 3 条"写成了数字
+        true   → 把布尔值写进了文字字段
+        [...]  → 该写成一段话却写成了数组
+
+    这些都不该让整次研究失败——报告文字而已，转成字符串继续用。
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        return "；".join(str(item) for item in value if item is not None)
+    return value
+
+
+#: 「宽松字符串」：pydantic v2 默认**不会**把 123 自动变成 "123"
+#: （它比 v1 严格得多），所以给"模型自由发挥的文字字段"套上这个类型，
+#: 在校验之前先把值转成字符串。用于标题、摘要、理由、结论正文等。
+LooseText = Annotated[str, BeforeValidator(_to_text)]
 
 
 def now_iso() -> str:
@@ -55,6 +85,11 @@ class KeywordOutput(BaseModel):
     @classmethod
     def _unwrap(cls, v: Any) -> Any:
         """容忍模型不老实的情况：把 [{"keyword": "x"}] 这类写法压平成 ["x"]。"""
+        if v is None:
+            return []
+        if isinstance(v, str):
+            # 模型把整个列表写成了一行"苹果、华为"，按顿号/换行拆开
+            return [p.strip() for p in v.replace("、", "\n").replace("，", "\n").split("\n") if p.strip()]
         if not isinstance(v, list):
             return v
         out: list[str] = []
@@ -74,7 +109,7 @@ class JudgeDecision(BaseModel):
     """JudgeAgent 的输出：信息够不够？不够的话下一轮搜什么？"""
 
     sufficient: bool = Field(description="现有草稿是否已能支撑一份完整报告")
-    reason: str = Field(default="", description="这么判断的理由")
+    reason: LooseText = Field(default="", description="这么判断的理由")
     new_keywords: list[str] = Field(
         default_factory=list, description="若不够，下一轮要补搜的关键词"
     )
@@ -83,6 +118,8 @@ class JudgeDecision(BaseModel):
     @classmethod
     def _coerce_list(cls, v: Any) -> Any:
         """模型有时会把关键词写成用顿号/换行分隔的一整个字符串，这里拆开。"""
+        if v is None:
+            return []
         if isinstance(v, str):
             parts = [p.strip() for p in v.replace("、", "\n").replace("，", "\n").split("\n")]
             return [p for p in parts if p]
@@ -92,7 +129,7 @@ class JudgeDecision(BaseModel):
 class ConclusionDraft(BaseModel):
     """报告元信息里的一条关键结论（LLM 输出，来源只给 URL）。"""
 
-    text: str = Field(description="结论本身，一句话")
+    text: LooseText = Field(description="结论本身，一句话")
     sources: list[str] = Field(
         default_factory=list,
         description="支撑这条结论的来源 URL；留空表示这是模型推断",
@@ -109,6 +146,8 @@ class ConclusionDraft(BaseModel):
     @field_validator("sources", mode="before")
     @classmethod
     def _coerce_sources(cls, v: Any) -> Any:
+        if v is None:
+            return []
         if isinstance(v, str):
             return [v] if v.strip() else []
         return v
@@ -121,15 +160,25 @@ class ReportOutline(BaseModel):
     不让 LLM 重新组织一遍，这样"每条正文都对应某个搜索关键词"，可追溯且不会丢信息。
     """
 
-    title: str = Field(description="报告标题")
-    summary: str = Field(description="执行摘要，一段话")
+    title: LooseText = Field(description="报告标题")
+    summary: LooseText = Field(description="执行摘要，一段话")
     key_conclusions: list[ConclusionDraft] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
 
     @field_validator("open_questions", mode="before")
     @classmethod
     def _coerce_questions(cls, v: Any) -> Any:
+        if v is None:
+            return []
         return [v] if isinstance(v, str) else v
+
+    @field_validator("key_conclusions", mode="before")
+    @classmethod
+    def _coerce_conclusions(cls, v: Any) -> Any:
+        if v is None:
+            return []
+        # 只给了一条 {"text": ...} 而没包成数组的情况
+        return [v] if isinstance(v, (str, dict)) else v
 
 
 # ===========================================================================
@@ -251,6 +300,12 @@ class ResearchRecord(BaseModel):
     updated_at: str = Field(default_factory=now_iso)
     error: str = Field(default="", description="失败原因，仅 status=failed 时有值")
 
+    # ---- 中间结果：研究跑的过程中不断变长，供轮询实时查看 ----
+    draft: list[DraftBlock] = Field(
+        default_factory=list,
+        description="研究过程中累积的草稿（每完成一个关键词追加一段）",
+    )
+
     # ---- 四类产物 ----
     report: ReportContent | None = Field(default=None, description="产物①结构化报告")
     report_html: str = Field(default="", description="产物①的可视化版本：自包含 HTML")
@@ -271,6 +326,21 @@ class ResearchRecord(BaseModel):
             source_count=len(self.sources),
             has_report=self.report is not None,
         )
+
+
+class ResearchOutcome(BaseModel):
+    """研究引擎 DeepResearch.run() 的返回值。
+
+    引擎不碰 id / status / 落盘这些"任务管理"的事，那是 research.py 的职责；
+    它只负责把四类产物算出来。
+    """
+
+    report: ReportContent
+    report_html: str
+    sources: list[Source] = Field(default_factory=list)
+    process: ResearchProcess = Field(default_factory=ResearchProcess)
+    confidence: Confidence
+    draft: list[DraftBlock] = Field(default_factory=list)
 
 
 class ResearchSummary(BaseModel):

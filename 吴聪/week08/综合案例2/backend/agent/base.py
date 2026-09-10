@@ -170,14 +170,44 @@ class BaseAgent:
         output_cls: type[TModel],
         template: str | None = None,
     ) -> TModel:
-        """调模型并把输出解析成 pydantic 对象。
+        """调模型并把输出解析成 pydantic 对象（解析失败同样会自动重试）。
 
         约定：提示词里已经要求模型"只输出一个 JSON 对象"，这里负责把它变成对象。
+
+        **为什么解析失败也要重试？**
+        实测踩过：模型偶尔会吐出非法 JSON（比如摘要里有个没转义的引号），
+        导致整份研究在最后一步报错作废——前面几分钟的检索和总结全白跑。
+        模型是随机采样的，重摇一次往往就正常了，所以解析失败也重试。
+
+        两层重试的关系：
+            _run 里边一层负责"空输出"重试；
+            这里外边一层负责"解析失败"重试。
+            最坏情况是两次叠加，但解析失败本身就少见，通常第一次重试就好了。
         """
-        text = await self._run(system_vars, user_input, template=template)
-        parsed = self.parse_json(text, output_cls)
-        logger.info("[%s] 解析为 %s 成功", self.name, output_cls.__name__)
-        return parsed
+        attempts = max(1, config.LLM_RETRIES)
+        last_error: Exception | None = None
+
+        for attempt in range(1, attempts + 1):
+            text = await self._run(system_vars, user_input, template=template)
+            try:
+                parsed = self.parse_json(text, output_cls)
+            except JSONParseError as exc:
+                last_error = exc
+                logger.warning(
+                    "[%s] 输出无法解析成 %s（第 %d/%d 次），重新调用模型",
+                    self.name, output_cls.__name__, attempt, attempts,
+                )
+                if attempt < attempts:
+                    await asyncio.sleep(1.0)
+                continue
+
+            logger.info("[%s] 解析为 %s 成功", self.name, output_cls.__name__)
+            return parsed
+
+        raise JSONParseError(
+            f"{self.name}：连续 {attempts} 次都无法解析成 {output_cls.__name__}。"
+            f"最后一次的错误：{last_error}"
+        )
 
     # ------------------------------------------------------------------
     # 共享小工具（多个角色 agent 都要用）
@@ -189,12 +219,37 @@ class BaseAgent:
         用在"期望纯文本输出"的地方（总结正文、HTML）。
         注意：**解析 JSON 时不能先剥围栏**——parse_json 需要保留原文
         才能用正则从围栏里把 JSON 抠出来。
+
+        模型有两种不老实的方式，都要处理：
+
+            ① 整段就是一个代码块
+               ```html\\n<html>...</html>\\n```
+
+            ② 代码块外面还加了说明文字（实测常见！）
+               这是根据您提供的报告数据生成的HTML文档，方便阅读与分享。
+               ```html\\n<html>...</html>\\n```
+
+        第一版只处理了 ①（用 re.fullmatch），结果 ② 的说明文字和围栏
+        被原样写进了报告文件，页面直接坏掉。现在两种都处理：
+        包围栏外加了文字时，取**最长的那段代码块**。
         """
         raw = (text or "").strip()
-        # 整个输出就是一个代码块时才剥；只是其中一段的话保持原样
+        if not raw:
+            return raw
+
         match = re.fullmatch(r"```[a-zA-Z]*[ \t]*\n?(.*?)\n?```", raw, re.DOTALL)
         if match:
             return match.group(1).strip()
+
+        # 围栏只是输出的一部分：把所有代码块取出来，用最长的那个
+        blocks = [
+            m.group(1).strip()
+            for m in re.finditer(r"```[a-zA-Z]*[ \t]*\n?(.*?)```", raw, re.DOTALL)
+        ]
+        blocks = [b for b in blocks if b]
+        if blocks:
+            return max(blocks, key=len)
+
         return raw
 
     @staticmethod
@@ -362,6 +417,30 @@ if __name__ == "__main__":
         else:
             raise AssertionError(f"本该报错却成功了：{bad}")
 
+    # --- 3.5 strip_code_fence：围栏外夹带说明文字（真实踩过的坑）---
+    print()
+    print("【3.5】剥代码块围栏")
+
+    plain = "这是一段普通正文，没有代码块。"
+    assert BaseAgent.strip_code_fence(plain) == plain
+    print("  无围栏             → 原样返回")
+
+    whole = "```\n一整段都在围栏里\n```"
+    assert BaseAgent.strip_code_fence(whole) == "一整段都在围栏里", repr(BaseAgent.strip_code_fence(whole))
+    print("  整段是一个围栏     → 剥掉")
+
+    # 这个案例来自真实运行：模型在 HTML 前面加了一句说明，第一版没处理，
+    # 说明文字和 ```html 被原样写进报告文件，浏览器整套样式全部失效。
+    real_world = (
+        "这是根据您提供的报告数据生成的可直接运行的HTML文档，方便阅读与分享。\n"
+        "```html\n<!DOCTYPE html>\n<html><body>正文</body></html>\n```"
+    )
+    stripped = BaseAgent.strip_code_fence(real_world)
+    assert stripped.startswith("<!DOCTYPE html>"), f"说明文字没被剥掉：{stripped[:60]!r}"
+    assert "```" not in stripped, "围栏还在"
+    assert "方便阅读与分享" not in stripped, "说明文字还在"
+    print("  围栏外夹带说明文字 → 正确取出 HTML（真实 bug 回归）")
+
     # --- 4. 渲染真实模板文件 ---
     print()
     print("【4】模板渲染")
@@ -392,6 +471,57 @@ if __name__ == "__main__":
         print(f"  漏传变量           → 正确报错（{type(exc).__name__}）")
     else:
         raise AssertionError("漏传变量本该报错")
+
+    # --- 5. call_json 的"解析失败自动重试" ---
+    # 实测踩过的坑：模型偶尔吐出非法 JSON，一次坏输出就让整份研究作废。
+    # 这里用假 _run 确定性地重现"第一次坏、第二次好"。
+    print()
+    print("【5】call_json 解析失败自动重试")
+
+    class _FlakyAgent(BaseAgent):
+        """第一次返回坏 JSON，之后返回好 JSON。"""
+
+        name = "flaky"
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        async def _run(self, system_vars, user_input, template=None) -> str:  # type: ignore[override]
+            self.calls += 1
+            if self.calls == 1:
+                # 真实踩到过的形态：摘要里有个没转义的引号，JSON 直接断掉
+                return '{"sufficient": true, "reason": "他说"够了""}'
+            return '{"sufficient": true, "reason": "重试后正常了"}'
+
+    flaky = _FlakyAgent()
+    result = asyncio.run(flaky.call_json({}, "测试", JudgeDecision))
+    assert flaky.calls == 2, f"应当重试一次，实际调用 {flaky.calls} 次"
+    assert result.reason == "重试后正常了", result.reason
+    print(f"  坏 JSON 后重试     → 第 {flaky.calls} 次成功：{result.reason!r}")
+
+    class _AlwaysBadAgent(BaseAgent):
+        """永远返回坏 JSON，应当在重试耗尽后抛错。"""
+
+        name = "always_bad"
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        async def _run(self, system_vars, user_input, template=None) -> str:  # type: ignore[override]
+            self.calls += 1
+            return "这不是 JSON"
+
+    bad = _AlwaysBadAgent()
+    try:
+        asyncio.run(bad.call_json({}, "测试", JudgeDecision))
+    except JSONParseError as exc:
+        assert bad.calls == max(1, config.LLM_RETRIES), bad.calls
+        assert "连续" in str(exc), str(exc)
+        print(f"  一直坏 JSON        → 试满 {bad.calls} 次后抛 JSONParseError（没有死循环）")
+    else:
+        raise AssertionError("本该抛 JSONParseError")
 
     print()
     print("全部检查通过。")

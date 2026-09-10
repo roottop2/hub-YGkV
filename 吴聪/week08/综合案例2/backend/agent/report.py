@@ -172,6 +172,29 @@ class ReportAgent(BaseAgent):
     # ------------------------------------------------------------------
     # 第 2 次调用
     # ------------------------------------------------------------------
+    @staticmethod
+    def _extract_html(text: str) -> str:
+        """从可能夹带前后说明文字的输出里，切出真正的 HTML 文档。
+
+        模型很爱在 HTML 前面写一句"这是根据您提供的数据生成的HTML文档……"。
+        只要找到 `<!DOCTYPE` / `<html` 就从这个位置开始，一直到最后一个 `</html>`，
+        前后的废话全部丢掉。
+
+        为什么必须做这一步：这些说明文字一旦留在文件开头，
+        浏览器就不把后面的 `<html>` 当作文档根节点，**整套样式会全部失效**——
+        报告看起来就是一份没有排版的纯文本。
+        """
+        lowered = text.lower()
+        starts = [p for p in (lowered.find("<!doctype"), lowered.find("<html")) if p != -1]
+        if not starts:
+            return text  # 找不到 HTML 开头，原样返回，交给上层打 warning
+
+        start = min(starts)
+        end = lowered.rfind("</html>")
+        if end == -1:
+            return text[start:]
+        return text[start : end + len("</html>")]
+
     async def _render_html(self, content: ReportContent, confidence: Confidence) -> str:
         """把组装好的报告渲染成完整自包含 HTML。
 
@@ -187,7 +210,7 @@ class ReportAgent(BaseAgent):
             template=self.html_template,
         )
 
-        html = self.strip_code_fence(html)
+        html = self._extract_html(self.strip_code_fence(html))
 
         # 粗检：不像 HTML 就记一条 warning（不中断，报告数据本身还是好的）
         lowered = html.lstrip().lower()
@@ -215,6 +238,31 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+
+    # 先做纯本地检查（不需要网络）：_extract_html 的三种输入
+    print("=" * 60)
+    print("_extract_html 自检（纯本地）")
+    print("=" * 60)
+
+    doc = "<!DOCTYPE html>\n<html><body>正文</body></html>"
+    assert ReportAgent._extract_html(doc) == doc
+    print("  干净 HTML          → 原样返回")
+
+    with_prose = "这是生成的HTML文档，方便阅读。\n" + doc + "\n希望有帮助！"
+    out = ReportAgent._extract_html(with_prose)
+    assert out.startswith("<!DOCTYPE html>"), repr(out[:50])
+    assert out.endswith("</html>"), repr(out[-30:])
+    assert "希望有帮助" not in out and "方便阅读" not in out
+    print("  前后夹带说明文字   → 精确切出文档")
+
+    truncated = "说明\n<html><body>没写结束标签"
+    out2 = ReportAgent._extract_html(truncated)
+    assert out2.startswith("<html>"), repr(out2)
+    print("  缺 </html> 结尾    → 从 <html> 截到末尾")
+
+    assert ReportAgent._extract_html("完全不是 HTML") == "完全不是 HTML"
+    print("  完全不是 HTML      → 原样返回（交给上层打 warning）")
+    print()
 
     async def _demo() -> None:
         topic = "天空为什么是蓝色的"
