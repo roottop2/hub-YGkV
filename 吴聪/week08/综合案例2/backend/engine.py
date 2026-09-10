@@ -285,24 +285,37 @@ class DeepResearch:
         让模型给自己的答案打分，结果基本不可靠——它倾向于说"很有信心"。
         这里改成数客观事实：搜到多少来源、分散在多少个站点、正文有多厚。
 
-        三个指标各占权重（来源数量 40% / 站点多样性 35% / 正文厚度 25%），
-        各自在"满分线"（20 条来源 / 10 个站点 / 3000 字正文）处封顶。
+        三个指标各占权重：来源数量 40% / 站点多样性 35% / 正文厚度 25%。
 
-        **总分最后乘 0.9 封顶到 0.90，永远不给满分。**
-        这不是为了好看——一个由搜索摘要拼出来的报告，不该声称"绝对确定"。
-        第一版没封顶时，一次搜到 46 条来源就跑出了 1.00 满分，明显误导。
+        每项用 `x / (x + 常数)` 的**软饱和曲线**归一化到 0~1：
+
+            来源数   n / (n + 20)      →  20 条 = 0.50，100 条 = 0.83
+            站点数   d / (d + 10)      →  10 个 = 0.50， 55 个 = 0.85
+            正文     c / (c + 3000)    → 3000 字 = 0.50，5737 字 = 0.66
+
+        为什么不直接用 `min(x / 阈值, 1)` 的硬封顶？
+        **那样会丢掉区分度。** 第一版就是这么写的：一次实测搜到 100 条来源，
+        三个指标全部触顶，总分恒等于上限——"搜了 100 条的"和"刚好达标的"
+        给出同一个分数，这个指标就废了。
+        软曲线单调递增且永远不封顶，资料越多分数越高，但增长越来越慢。
+
+        **总分再乘 0.9，即上限 0.90，永远不给满分。**
+        一个由搜索摘要拼出来的报告，不该声称"绝对确定"。
         """
         source_count = len(self.sources)
         domains = {domain_of(s.url) for s in self.sources if domain_of(s.url)}
         domain_count = len(domains)
         body_chars = sum(len(b.body) for b in self.draft)
 
-        # 各指标归一化到 0~1（超过满分线按 1 算）
-        n_score = min(source_count / 20, 1.0)
-        d_score = min(domain_count / 10, 1.0)
-        c_score = min(body_chars / 3000, 1.0)
+        def saturate(x: int, half: int) -> float:
+            """软饱和：x=half 时得 0.5，x 越大越接近 1 但永不到 1。"""
+            return x / (x + half)
 
-        # 0.9 是刻意留的天花板：再充分的资料也不等于确定无疑
+        n_score = saturate(source_count, 20)
+        d_score = saturate(domain_count, 10)
+        c_score = saturate(body_chars, 3000)
+
+        # 0.9 是刻意留的天花板
         score = round(0.9 * (0.40 * n_score + 0.35 * d_score + 0.25 * c_score), 2)
 
         if score >= 0.65:
@@ -536,7 +549,31 @@ if __name__ == "__main__":
             assert "模型推断" in conf0.reason
             print(f"  无来源时的置信度   : {conf0.level}（{conf0.score}）——{conf0.reason[:40]}...")
 
-            # --- 10. max_rounds 上限兜底：审核员永远说"不够"也不会死循环 ---
+            # --- 10. 置信度必须随资料量单调递增（硬封顶会破坏这条性质）---
+            # 第一版用 min(x/阈值, 1) 硬封顶，100 条来源和 20 条来源都得出
+            # 同一个数，"搜得多"和"刚够"分不出来，指标就失去意义了。
+            def _score_for(n_sources: int, n_domains: int) -> float:
+                eng = DeepResearch()
+                eng.sources = [
+                    Source(url=f"https://site{i % n_domains}.com/a{i}", title="t")
+                    for i in range(n_sources)
+                ]
+                return eng.compute_confidence().score
+
+            samples = [(5, 3), (20, 10), (50, 25), (100, 50), (400, 200)]
+            scores = [_score_for(n, d) for n, d in samples]
+            readable = " < ".join(f"{s}" for s in scores)
+            print(f"  资料量 → 置信分    : {readable}")
+
+            for i in range(len(scores) - 1):
+                assert scores[i] < scores[i + 1], (
+                    f"资料更多时置信分没有变大（{samples[i]}→{scores[i]}，"
+                    f"{samples[i+1]}→{scores[i+1]}），说明又出现封顶了"
+                )
+            assert scores[-1] < 0.9, f"再多的资料也不该到满分，实际 {scores[-1]}"
+            print("  单调递增且永不封顶 : 通过")
+
+            # --- 11. max_rounds 上限兜底：审核员永远说"不够"也不会死循环 ---
             class AlwaysThirstyJudge:
                 """每轮都判不足、每次都提新关键词——最坏情况的审核员。"""
 
