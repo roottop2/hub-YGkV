@@ -29,6 +29,25 @@ class SearchError(RuntimeError):
     """搜索失败。引擎会捕获它，记一笔日志后继续跑，不让整个研究任务崩掉。"""
 
 
+def domain_of(url: str) -> str:
+    """从 URL 里取出域名，用来统计"来源分散在多少个站点"。
+
+    例：https://www.163.com/dy/article/xxx.html → 163.com
+
+    为什么统计站点数？来源全挤在一个站点上，可信度是打折的；
+    这是置信度计算的一个输入（见 engine.compute_confidence）。
+    """
+    from urllib.parse import urlparse
+
+    try:
+        host = urlparse(url).netloc.lower()
+    except ValueError:
+        return ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
 def _first(item: dict, *keys: str) -> str:
     """从字典里按顺序取第一个非空的字符串值。
 
