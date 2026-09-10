@@ -32,8 +32,12 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-def _now() -> str:
-    """当前时间的 ISO 字符串。统一走这个函数，格式才不会各处不一致。"""
+def now_iso() -> str:
+    """当前时间的 ISO 字符串（如 2026-09-10T17:42:01）。
+
+    统一走这个函数，时间格式才不会各处不一致；
+    而且这种格式**按字符串排序就等于按时间排序**，存储层可以直接拿来排序。
+    """
     return datetime.now().isoformat(timespec="seconds")
 
 
@@ -243,8 +247,8 @@ class ResearchRecord(BaseModel):
     id: str = Field(default_factory=new_research_id)
     topic: str
     status: ResearchStatus = ResearchStatus.PENDING
-    created_at: str = Field(default_factory=_now)
-    updated_at: str = Field(default_factory=_now)
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
     error: str = Field(default="", description="失败原因，仅 status=failed 时有值")
 
     # ---- 四类产物 ----
@@ -253,6 +257,38 @@ class ResearchRecord(BaseModel):
     sources: list[Source] = Field(default_factory=list, description="产物②来源列表")
     process: ResearchProcess = Field(default_factory=ResearchProcess, description="产物③研究过程")
     confidence: Confidence | None = Field(default=None, description="产物④置信度说明")
+
+    def to_summary(self) -> "ResearchSummary":
+        """压成列表页用的轻量版。"""
+        return ResearchSummary(
+            id=self.id,
+            topic=self.topic,
+            status=self.status,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            error=self.error,
+            iterations=self.process.iterations,
+            source_count=len(self.sources),
+            has_report=self.report is not None,
+        )
+
+
+class ResearchSummary(BaseModel):
+    """研究记录的"轻量版"，用于 GET /api/research 列表。
+
+    列表页不需要报告正文全文，只给够列表展示的字段，
+    免得一次请求把几十份报告塞进响应体。
+    """
+
+    id: str
+    topic: str
+    status: ResearchStatus
+    created_at: str
+    updated_at: str
+    error: str = ""
+    iterations: int = 0
+    source_count: int = 0
+    has_report: bool = False
 
 
 class ResearchRequest(BaseModel):
