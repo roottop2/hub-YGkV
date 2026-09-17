@@ -1,0 +1,614 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Deep Research
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/deepseek:0.0.24@9e12eef09973667f0eaf4f082af883167e1de88740b22e71e71488d020c3778a
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:1.0.5@51583313a5988d5dca405063831ffeeacdc1f2e95f32a8c10b4c281ceef39ebb
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        knowledge_file_size_limit: 15
+        single_chunk_attachment_limit: 10
+        skill_file_size_limit: 50
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: 1789615683433-source-1789615706467-target
+      selected: false
+      source: '1789615683433'
+      sourceHandle: source
+      target: '1789615706467'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1789615711411'
+        sourceType: iteration-start
+        targetType: http-request
+      id: 1789615711411start-source-1789615727468-target
+      selected: false
+      source: 1789615711411start
+      sourceHandle: source
+      target: '1789615727468'
+      targetHandle: target
+      type: custom
+      zIndex: 1001
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1789615711411'
+        sourceType: http-request
+        targetType: llm
+      id: 1789615727468-source-1789615732396-target
+      selected: false
+      source: '1789615727468'
+      sourceHandle: source
+      target: '1789615732396'
+      targetHandle: target
+      type: custom
+      zIndex: 1001
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: iteration
+        targetType: llm
+      id: 1789615711411-source-1789621793417-target
+      selected: false
+      source: '1789615711411'
+      sourceHandle: source
+      target: '1789621793417'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: end
+      id: 1789621793417-source-1789621871665-target
+      selected: false
+      source: '1789621793417'
+      sourceHandle: source
+      target: '1789621871665'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: iteration
+      id: 1789615706467-source-1789615711411-target
+      source: '1789615706467'
+      sourceHandle: source
+      target: '1789615711411'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: question
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: question
+      height: 108
+      id: '1789615683433'
+      position:
+        x: -219
+        y: 282
+      positionAbsolute:
+        x: -219
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params: {}
+          mode: chat
+          name: gpt-5.6-luna
+          provider: langgenius/openai/openai
+        prompt_config:
+          jinja2_variables: []
+        prompt_template:
+        - id: ca7b5451-f572-4f45-b5b2-cc95030fb84e
+          role: system
+          text: "你是一名专业的深度研究规划助手。\n\n你的任务是分析用户提出的研究问题，并将其拆分为多个适合进行网络检索的独立子问题。\n\n\
+            要求：\n\n1. 子问题应共同覆盖用户原始问题的核心内容。\n2. 每个子问题必须能够独立进行网络搜索。\n3. 避免多个子问题内容重复。\n\
+            4. 优先覆盖：\n   - 背景和定义\n   - 当前现状\n   - 核心数据\n   - 主要观点\n   - 优势或影响\n  \
+            \ - 问题和风险\n   - 未来趋势\n5. 根据问题复杂程度生成 3～6 个子问题。\n6. 子问题应适合作为搜索引擎的查询词。\n\
+            7. 不要回答问题，只负责拆解研究任务。"
+        - edition_type: basic
+          id: 6db074a3-2a84-4821-8c8c-ba0e427eaaa3
+          role: user
+          text: 用户研究问题：{{#1789615683433.question#}}
+        selected: false
+        structured_output:
+          schema:
+            additionalProperties: false
+            properties:
+              questions:
+                items:
+                  type: string
+                type: array
+            required:
+            - questions
+            type: object
+        structured_output_enabled: true
+        title: 研究问题分解
+        type: llm
+        vision:
+          enabled: false
+      height: 87
+      id: '1789615706467'
+      position:
+        x: 61.80394252393785
+        y: 303
+      positionAbsolute:
+        x: 61.80394252393785
+        y: 303
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 241
+      zIndex: 0
+    - data:
+        error_handle_mode: terminated
+        flatten_output: true
+        height: 224
+        is_parallel: false
+        iterator_input_type: object
+        iterator_selector:
+        - '1789615706467'
+        - structured_output
+        - questions
+        output_selector: []
+        output_type: array[string]
+        parallel_nums: 10
+        selected: false
+        start_node_id: 1789615711411start
+        title: 迭代
+        type: iteration
+        width: 686
+      height: 224
+      id: '1789615711411'
+      position:
+        x: 350.635588841928
+        y: 303
+      positionAbsolute:
+        x: 350.635588841928
+        y: 303
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 686
+      zIndex: 0
+    - data:
+        desc: ''
+        isInIteration: true
+        selected: false
+        title: ''
+        type: iteration-start
+      draggable: false
+      height: 48
+      id: 1789615711411start
+      parentId: '1789615711411'
+      position:
+        x: 24
+        y: 68
+      positionAbsolute:
+        x: 374.635588841928
+        y: 371
+      selectable: false
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom-iteration-start
+      width: 44
+      zIndex: 1001
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: key-value-124
+            key: ''
+            type: text
+            value: "{\n  \"query\": {{#1789615711411.item#}},\n  \"summary\": true,\n\
+              \  \"count\": 10\n}"
+          type: json
+        headers: Authorization:Bearer sk-3d2293ad83aa4823a7c7ce8dd5ff8c72
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1789615711411'
+        method: post
+        params: Content-Type:application/json
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: true
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: Bocha搜索
+        type: http-request
+        url: https://api.bocha.cn/v1/web-search
+        variables: []
+      height: 136
+      id: '1789615727468'
+      parentId: '1789615711411'
+      position:
+        x: 128
+        y: 68
+      positionAbsolute:
+        x: 478.635588841928
+        y: 371
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 241
+      zIndex: 1001
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1789615711411'
+        model:
+          completion_params: {}
+          mode: chat
+          name: deepseek-flash
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: e3df5008-2941-411e-85b2-afc56c254395
+          role: system
+          text: '你是一名专业的研究分析助手。
+
+
+            当前正在针对一个子研究问题分析网络搜索结果。
+
+
+            你的任务是：
+
+
+            1. 阅读搜索结果。
+
+            2. 提取与当前研究问题直接相关的信息。
+
+            3. 去除广告、无关内容和重复信息。
+
+            4. 对多个来源的信息进行综合，而不是简单复制网页内容。
+
+            5. 提取重要的数据、事实、观点和结论。
+
+            6. 如果不同来源存在不同观点，需要明确指出。
+
+            7. 不允许根据搜索结果之外的信息自行编造事实。
+
+            8. 尽量保留来源的网页标题和 URL，方便最终报告引用。
+
+
+            输出格式：
+
+
+            ## 子问题
+
+            ...
+
+
+            ## 研究结论
+
+            ...
+
+
+            ## 关键事实
+
+            - ...
+
+            - ...
+
+
+            ## 数据与证据
+
+            - ...
+
+
+            ## 不同观点
+
+            ...
+
+
+            ## 来源
+
+            1. 标题 - URL
+
+            2. 标题 - URL'
+        - id: 18859532-392a-4b48-b646-8b1287114062
+          role: user
+          text: '当前研究问题：
+
+
+            {{#1789615711411.item#}}
+
+
+            以下是 Bocha 搜索返回的网络资料：
+
+
+            {{#1789615727468.body#}}'
+        selected: false
+        title: 网页总结
+        type: llm
+        vision:
+          enabled: false
+      height: 87
+      id: '1789615732396'
+      parentId: '1789615711411'
+      position:
+        x: 429
+        y: 68
+      positionAbsolute:
+        x: 779.635588841928
+        y: 371
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 241
+      zIndex: 1001
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params: {}
+          mode: chat
+          name: deepseek-flash
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 7c6cdf33-abfe-4974-88f2-1639c4e23fe8
+          role: system
+          text: '你是一名专业的 Deep Research 研究报告撰写助手。
+
+
+            你已经获得针对用户问题进行多轮网络搜索后的研究资料。
+
+
+            请综合所有子研究任务的研究结果，为用户生成一份完整、客观、有逻辑的深度研究报告。
+
+
+            要求：
+
+
+            1. 必须围绕用户的原始问题展开。
+
+            2. 综合多个子问题的搜索结果，而不是逐条简单拼接。
+
+            3. 合并重复信息。
+
+            4. 区分事实、数据、观点和推测。
+
+            5. 如果资料中存在不同观点，应客观呈现。
+
+            6. 不允许编造搜索资料中不存在的数据。
+
+            7. 尽可能保留重要数据。
+
+            8. 保留来源 URL。
+
+            9. 使用 Markdown 输出。
+
+            10. 最后给出综合结论。
+
+
+            报告格式：
+
+
+            # 深度研究报告
+
+
+            ## 一、问题概述
+
+
+            说明研究的问题、背景及研究范围。
+
+
+            ## 二、核心发现
+
+
+            概括最重要的研究结论。
+
+
+            ## 三、详细分析
+
+
+            根据研究内容合理划分多个小节。
+
+
+            ### 3.1 ...
+
+
+            ### 3.2 ...
+
+
+            ### 3.3 ...
+
+
+            ## 四、关键数据与证据
+
+
+            整理研究中的重要数据和事实。
+
+
+            ## 五、争议与不同观点
+
+
+            如果存在不同结论或观点，在这里进行说明。
+
+
+            ## 六、趋势与展望
+
+
+            根据现有研究资料总结可能的发展方向。
+
+            不得将没有事实依据的推测写成确定事实。
+
+
+            ## 七、结论
+
+
+            直接回应用户原始问题。
+
+
+            ## 八、参考来源
+
+
+            整理研究过程中使用的重要网页来源。'
+        - id: 5c983102-dc77-4c71-acf4-72e7700dfbf3
+          role: user
+          text: '用户最初的研究问题：
+
+
+            {{#1789615683433.question#}}
+
+
+            以下是针对不同子问题进行网络搜索和分析后得到的研究资料：
+
+
+            {{#1789615711411.output#}}'
+        selected: false
+        title: 生成最终报告
+        type: llm
+        vision:
+          enabled: false
+      height: 87
+      id: '1789621793417'
+      position:
+        x: 1077.352690644741
+        y: 303
+      positionAbsolute:
+        x: 1077.352690644741
+        y: 303
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 241
+      zIndex: 0
+    - data:
+        outputs:
+        - value_selector:
+          - '1789621793417'
+          - text
+          value_type: string
+          variable: output
+        selected: false
+        title: 输出
+        type: end
+      height: 87
+      id: '1789621871665'
+      position:
+        x: 1358.5423553677124
+        y: 303
+      positionAbsolute:
+        x: 1358.5423553677124
+        y: 303
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 241
+      zIndex: 0
+    viewport:
+      x: 239.01606599150256
+      y: 308.6175233609029
+      zoom: 0.6597539553864472
+  rag_pipeline_variables: []
